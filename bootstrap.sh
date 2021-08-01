@@ -41,7 +41,9 @@ case "$1" in
   riscv32)
     ARCH=riscv32
     LINUX_ARCH=riscv
-    WITHARCH=--with-arch=rv32imafdc
+    #WITHARCH=--with-arch=rv32imafdc
+	WITHARCH=--with-arch=rv32ima
+	WITHABI=--with-abi=ilp32
     ;;
   riscv64)
     ARCH=riscv64
@@ -88,7 +90,7 @@ musl_version=1.1.18-riscv-a6
 linux_version=4.18
 
 # bootstrap install prefix and version
-bootstrap_prefix=/opt/riscv/musl-riscv-toolchain
+bootstrap_prefix=/opt/riscv32_musl
 bootstrap_version=1
 
 # derived variables
@@ -108,6 +110,8 @@ make_directories()
 
 download_prerequisites()
 {
+  export http_proxy="http://127.0.0.1:7890" 
+  export https_proxy="http://127.0.0.1:7890"
   test -f archives/gmp-${gmp_version}.tar.bz2 || \
       curl -o archives/gmp-${gmp_version}.tar.bz2 \
       https://gmplib.org/download/gmp-${gmp_version}/gmp-${gmp_version}.tar.bz2
@@ -119,10 +123,10 @@ download_prerequisites()
       https://gcc.gnu.org/pub/gcc/infrastructure/mpc-${mpc_version}.tar.gz
   test -f archives/isl-${isl_version}.tar.bz2 || \
       curl -o archives/isl-${isl_version}.tar.bz2 \
-      ftp://gcc.gnu.org/pub/gcc/infrastructure/isl-${isl_version}.tar.bz2
+      http://gcc.gnu.org/pub/gcc/infrastructure/isl-${isl_version}.tar.bz2
   test -f archives/cloog-${cloog_version}.tar.gz || \
       curl -o archives/cloog-${cloog_version}.tar.gz \
-      https://www.bastoul.net/cloog/pages/download/cloog-${cloog_version}.tar.gz
+      http://www.bastoul.net/cloog/pages/download/cloog-${cloog_version}.tar.gz
   test -f archives/binutils-${binutils_version}.tar.bz2 || \
       curl -o archives/binutils-${binutils_version}.tar.bz2 \
       http://ftp.gnu.org/gnu/binutils/binutils-${binutils_version}.tar.bz2
@@ -283,7 +287,7 @@ build_binutils()
     cd build/binutils-${host}-${ARCH}
     CFLAGS=-fPIE ../../src/binutils-${binutils_version}/configure \
         --prefix=${prefix} \
-        --target=${TARGET:=$TRIPLE} ${WITHARCH} \
+        --target=${TARGET:=$TRIPLE} ${WITHARCH} ${WITHABI} \
         ${transform:+--program-transform-name='s&^&'${TRIPLE}'-&'} \
         --with-sysroot=${SYSROOT} \
         --disable-nls \
@@ -361,7 +365,7 @@ build_gcc_stage1()
     cd build/gcc-stage1-${host}-${ARCH}
     CFLAGS=-fPIE ../../src/gcc-${gcc_version}/configure \
         --prefix=${prefix} \
-        --target=${TARGET:=$TRIPLE} ${WITHARCH} \
+        --target=${TARGET:=$TRIPLE} ${WITHARCH} ${WITHABI} \
         ${transform:+--program-transform-name='s&^&'${TRIPLE}'-&'} \
         --with-sysroot=${SYSROOT} \
         --with-gnu-as \
@@ -408,7 +412,7 @@ build_musl()
   test -f stamps/musl-dynamic-${ARCH} || (
     set -e
     cd build/musl-${ARCH}
-    make -j$(nproc)
+    make -j$(nproc) -D__riscv_soft_float -D__riscv_float_abi_soft
     make DESTDIR=${SYSROOT} install-libs
   ) && touch stamps/musl-dynamic-${ARCH}
   test "$?" -eq "0" || exit 1
@@ -427,7 +431,7 @@ build_gcc_stage2()
     cd build/gcc-stage2-${host}-${ARCH}
     CFLAGS=-fPIE ../../src/gcc-${gcc_version}/configure \
         --prefix=${prefix} \
-        --target=${TARGET:=$TRIPLE} ${WITHARCH} \
+        --target=${TARGET:=$TRIPLE} ${WITHARCH} ${WITHABI} \
         ${transform:+--program-transform-name='s&^&'${TRIPLE}'-&'} \
         --with-sysroot=${SYSROOT} \
         --with-gnu-as \
